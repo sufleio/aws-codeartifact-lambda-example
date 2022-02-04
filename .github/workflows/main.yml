@@ -1,0 +1,25 @@
+name: Python application
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy-lambda:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+      - uses: aws-actions/setup-sam@v1
+      - uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-1
+      - run: echo CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token --domain my-domain --domain-owner ${{ secrets.AWS_ACCOUNT_ID }} --query authorizationToken --output text --region eu-west-1 ) >> $GITHUB_ENV
+      - run: echo "$(echo '--extra-index-url https://aws:'"$CODEARTIFACT_AUTH_TOKEN"'@my-domain-${{ secrets.AWS_ACCOUNT_ID }}.d.codeartifact.eu-west-1.amazonaws.com/pypi/my-private-repo/simple/' | cat - sam-app/hello_world/requirements.txt)" > sam-app/hello_world/requirements.txt
+      # Build using SAM
+      - run: sam build --use-container --template-file sam-app/template.yaml
+      # Deploy on AWS
+      - run: sam deploy --config-file sam-app/samconfig.toml
